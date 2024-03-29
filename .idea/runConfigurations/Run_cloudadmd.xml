@@ -1,7 +1,7 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="Run cloudadmd" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
-    <option name="command" value="run --package cloudadmd --bin main" />
-    <option name="workingDirectory" value="file://$PROJECT_DIR$/../cloud" />
+    <option name="command" value="run --package cloudadmd --bin cloudadmd" />
+    <option name="workingDirectory" value="file://$PROJECT_DIR$" />
     <envs>
       <env name="RUST_LOG" value="debug" />
     </envs>
