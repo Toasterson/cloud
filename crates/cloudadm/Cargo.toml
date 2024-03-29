@@ -1,0 +1,12 @@
+[package]
+name = "cloudadm"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+bonsaidb = { workspace = true, features = ["client-full", "client"] }
+clap.workspace = true
+miette.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+serde = { version = "1.0.197", features = ["derive"] }
