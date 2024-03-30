@@ -10,4 +10,3 @@ miette.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 serde.workspace = true
-kaydle.workspace = true
