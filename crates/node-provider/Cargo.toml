@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-bonsaidb = { workspace = true, features = ["client-full", "client", "local"] }
+bonsaidb = { workspace = true, features = ["client-full", "client", "local", "password-hashing", "token-authentication"] }
 clap.workspace = true
 miette = {workspace = true, features = ["fancy"]}
 thiserror.workspace = true
@@ -13,3 +13,6 @@ serde.workspace = true
 config.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
+serde_yaml.workspace = true
+knuffel = "3.2.0"
+cbor = "0.4.1"

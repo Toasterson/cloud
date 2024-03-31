@@ -1,0 +1,22 @@
+brand: LinkedPkg
+autoboot: false
+ip_type: Exclusive
+network:
+- name: oinet
+- physical: oistub0
+  allowed_address: 192.168.100.20/24
+  defrouter: 192.168.100.1
+nameservers:
+- 8.8.8.8
+- 9.9.9.9
+dns_search:
+- openindiana.org
+packages:
+- pkg:/package/pkg
+services:
+- name: svc:/application/pkg/server:solarm_org
+  property_groups:
+  - properties:
+      readonly: 'true'
+      port: '8090'
+      proxy-base: https://pkg.solarm.org/

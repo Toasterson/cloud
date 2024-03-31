@@ -1,0 +1,6 @@
+[target.aarch64-apple-darwin]
+# Work around the broken linker in XCode caused bz using knuffel
+# https://users.rust-lang.org/t/linker-dies-when-using-knuffel/101753/7
+rustflags = [
+    "-C", "link-arg=-fuse-ld=lld",
+]

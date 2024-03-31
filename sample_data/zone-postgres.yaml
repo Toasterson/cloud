@@ -1,0 +1,17 @@
+brand: LinkedPkg
+autoboot: false
+ip_type: Exclusive
+network:
+- name: oinet
+- physical: oistub0
+  allowed_address: 192.168.100.20/24
+  defrouter: 192.168.100.1
+nameservers:
+- 8.8.8.8
+- 9.9.9.9
+dns_search:
+- openindiana.org
+packages:
+- pkg:/service/database/postgres-16
+services:
+- name: svc:/application/database/postgresql_16:default

@@ -1,0 +1,21 @@
+brand "linked-pkg"
+autoboot false
+ip-type "exclusive"
+net "oinet"
+
+net {
+    physical "oistub0"
+    allowed-address "192.168.100.20/24"
+    defrouter "192.168.100.1"
+}
+
+nameserver "8.8.8.8"
+nameserver "9.9.9.9"
+
+dns-search "openindiana.org"
+
+package "pkg:/package/pkg"
+
+service "svc:/application/pkg/server:solarm_org" {
+    pkg port="8090" proxy-base="https://pkg.solarm.org/" readonly="true"
+}

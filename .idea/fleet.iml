@@ -5,6 +5,9 @@
       <sourceFolder url="file://$MODULE_DIR$/crates/cloudadm/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/cloudadmd/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/node-provider/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/examples" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/node-provider/examples" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
     </content>
     <orderEntry type="inheritedJdk" />

@@ -1,5 +1,7 @@
+use bonsaidb::core::connection::StorageConnection;
 use std::path::PathBuf;
 
+use bonsaidb::local::config::Builder;
 use bonsaidb::local::{config::StorageConfiguration, Database, Storage};
 use clap::Parser;
 use config::File;
