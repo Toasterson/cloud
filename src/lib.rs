@@ -4,6 +4,7 @@ use bonsaidb::core::schema::Collection;
 use chrono::{DateTime, NaiveDateTime};
 use miette::Diagnostic;
 use semver::Version;
+use serde::de::DeserializeOwned;
 use serde::{de::Visitor, Deserialize, Serialize};
 use std::str::FromStr;
 use thiserror::Error;
@@ -170,4 +171,18 @@ pub struct File {
 pub enum FileKind {
     Template,
     Normal,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub enum DeploymentEvent<T> {
+    Create { data: T, kind: String },
+    Update { data: T, kind: String },
+    Delete { data: T, kind: String },
+    List { requester: String, kind: String },
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub enum StatusReport<T, E> {
+    Ok { kind: String, data: Vec<T> },
+    Err(E),
 }
