@@ -1,10 +1,10 @@
+use std::fmt::Display;
 use arc_bytes::serde::Bytes;
 use bonsaidb::core::key::Key;
 use bonsaidb::core::schema::Collection;
 use chrono::{DateTime, NaiveDateTime};
 use miette::Diagnostic;
 use semver::Version;
-use serde::de::DeserializeOwned;
 use serde::{de::Visitor, Deserialize, Serialize};
 use std::str::FromStr;
 use thiserror::Error;
@@ -128,17 +128,18 @@ impl FromStr for ResourceIdentifier {
     }
 }
 
-impl ToString for ResourceIdentifier {
-    fn to_string(&self) -> String {
+impl Display for ResourceIdentifier {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let version_string = if self.revision == 0 {
             format!("{}:{}", self.version, self.timestamp)
         } else {
             format!("{}-{}:{}", self.version, self.revision, self.timestamp)
         };
-        match &self.tenant {
+        let str = match &self.tenant {
             None => format!("res:/{}@{}", self.name, version_string),
             Some(tenant) => format!("res://{tenant}/{}@{}", self.name, version_string),
-        }
+        };
+        write!(f, "{}", str)
     }
 }
 
