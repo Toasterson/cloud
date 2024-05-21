@@ -1,0 +1,11 @@
+tenant: aurora-opencloud.org
+name: public
+switches:
+- kind: Local
+  name: public
+  allowed_range: null
+  router: 45.23.76.1
+  public_ips:
+  - range: 45.23.76.0/29
+    reserved: 45.23.76.1
+    floating_ip: 45.24.76.1

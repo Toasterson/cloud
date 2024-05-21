@@ -1,10 +1,9 @@
 tenant "openindiana.org"
 name "oi"
 
-(distributed) vswitch "internal" {
+(distributed)vswitch "internal" {
     allowed-range "192.168.100.0/24"
     router "192.168.100.1"
-    public false
 }
 
-(external) vswitch "public"
+(external)vswitch "aurora-opencloud.org/public"

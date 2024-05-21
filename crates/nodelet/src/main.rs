@@ -4,17 +4,19 @@ use std::path::PathBuf;
 use bonsaidb::local::config::Builder;
 use bonsaidb::local::{config::StorageConfiguration, Database, Storage};
 use clap::Parser;
+use cloud::{DeploymentEvent, DeploymentReport, DeploymentState, ResourceIdentifier};
 use config::{Environment, File};
 use deadpool_lapin::lapin::message::Delivery;
 use deadpool_lapin::lapin::options::{
-    BasicAckOptions, BasicConsumeOptions, BasicNackOptions, QueueBindOptions, QueueDeclareOptions,
+    BasicAckOptions, BasicConsumeOptions, BasicNackOptions, BasicPublishOptions, QueueBindOptions,
+    QueueDeclareOptions,
 };
 use deadpool_lapin::lapin::types::FieldTable;
-use deadpool_lapin::lapin::Channel;
+use deadpool_lapin::lapin::{BasicProperties, Channel};
 use deadpool_lapin::Runtime::Tokio1;
 use futures::StreamExt;
 use miette::Diagnostic;
-use node_provider::Zone;
+use nodelet::{DeploymentStatus, Network, NetworkInterface, NodeEntry, NodeObject, Zone};
 use serde::Deserialize;
 use thiserror::Error;
 use tracing::{debug, error, info, instrument};
@@ -49,6 +51,12 @@ enum Error {
 
     #[error(transparent)]
     LapinError(#[from] deadpool_lapin::lapin::Error),
+
+    #[error(transparent)]
+    Json(#[from] serde_json::Error),
+
+    #[error("Unsupported routing key received")]
+    UnsupportedRoutingKey,
 }
 
 #[derive(Debug, Parser)]
@@ -67,14 +75,14 @@ struct Config {
 fn load_config(args: Args) -> Result<Config> {
     debug!("Loading configuration");
     let cfg = config::Config::builder()
-        .add_source(File::with_name("node-provider").required(false))
-        .add_source(File::with_name("/etc/node-provider").required(false))
+        .add_source(File::with_name("nodelet").required(false))
+        .add_source(File::with_name("/etc/nodelet").required(false))
         .add_source(
             Environment::with_prefix("NODE")
                 .separator("_")
                 .prefix_separator("__"),
         )
-        .set_default("path", "./target/node.database")?
+        .set_default("path", "./target/nodelet.database")?
         .set_default("amqp.url", "amqp://dev:dev@localhost:5672/master")?
         .set_override("connection_string", args.connection_string)?
         .build()?;
@@ -83,8 +91,9 @@ fn load_config(args: Args) -> Result<Config> {
 
 async fn listen(config: Config) -> Result<()> {
     debug!("Initializing local Database");
-    let storage = Storage::open(StorageConfiguration::new(config.path).with_schema::<Zone>()?)?;
-    let zones_db = storage.create_database::<Zone>("zones", true)?;
+    let storage =
+        Storage::open(StorageConfiguration::new(config.path).with_schema::<NodeEntry>()?)?;
+    let nodedb = storage.create_database::<NodeEntry>("node-entries", true)?;
     debug!("Database setup");
     let pool = config.amqp.create_pool(Some(Tokio1))?;
 
@@ -96,7 +105,7 @@ async fn listen(config: Config) -> Result<()> {
     );
 
     let hostname = gethostname::gethostname().to_string_lossy().to_string();
-    let queue_name = format!("node-provider.{hostname}");
+    let queue_name = format!("nodelet.{hostname}");
 
     let channel = conn.create_channel().await?;
 
@@ -114,7 +123,7 @@ async fn listen(config: Config) -> Result<()> {
 
     channel
         .exchange_declare(
-            "deployment",
+            "deployment.nodelet",
             deadpool_lapin::lapin::ExchangeKind::Topic,
             deadpool_lapin::lapin::options::ExchangeDeclareOptions {
                 durable: true,
@@ -133,7 +142,7 @@ async fn listen(config: Config) -> Result<()> {
         channel
             .queue_bind(
                 &queue_name,
-                "deployment",
+                "deployment.nodelet",
                 topic,
                 QueueBindOptions::default(),
                 FieldTable::default(),
@@ -145,7 +154,7 @@ async fn listen(config: Config) -> Result<()> {
     let mut consumer = channel
         .basic_consume(
             &queue_name,
-            "node-provider.consumer",
+            "nodelet.consumer",
             BasicConsumeOptions::default(),
             FieldTable::default(),
         )
@@ -156,10 +165,20 @@ async fn listen(config: Config) -> Result<()> {
         match delivery {
             Ok(delivery) => {
                 let tag = delivery.delivery_tag;
-                match handle_message(delivery, &channel, &zones_db).await {
-                    Ok(_) => {
+                match handle_message(delivery, &channel, &nodedb).await {
+                    Ok(report) => {
                         debug!("handled message");
                         channel.basic_ack(tag, BasicAckOptions::default()).await?;
+                        let payload = serde_json::to_vec(&report)?;
+                        channel
+                            .basic_publish(
+                                "deployment_reports",
+                                "",
+                                BasicPublishOptions::default(),
+                                &payload,
+                                BasicProperties::default(),
+                            )
+                            .await?;
                     }
                     Err(e) => {
                         error!(error = ?e, "failed to handle message");
@@ -175,6 +194,54 @@ async fn listen(config: Config) -> Result<()> {
 }
 
 #[instrument(skip_all)]
-async fn handle_message(delivery: Delivery, channel: &Channel, zone_db: &Database) -> Result<()> {
-    Ok(())
+async fn handle_message(
+    delivery: Delivery,
+    channel: &Channel,
+    nodedb: &Database,
+) -> Result<DeploymentReport> {
+    match delivery.routing_key.as_str() {
+        "zones" => {
+            let zone_deployment: DeploymentEvent<Zone> = serde_json::from_slice(&delivery.data)?;
+            let report = match zone_deployment {
+                DeploymentEvent::Ensure { data, identifier } => {
+                    let entry = NodeEntry {
+                        resource_identifier: identifier.clone(),
+                        object: NodeObject::Zone(data.clone()),
+                        state: DeploymentStatus::Configured,
+                    };
+                    DeploymentReport::Ensure {
+                        identifier,
+                        state: DeploymentState::Configured,
+                        result: Some(Ok(())),
+                    }
+                }
+                DeploymentEvent::Remove { data, identifier } => DeploymentReport::Remove {
+                    identifier,
+                    state: DeploymentState::Configured,
+                    result: Some(Ok(())),
+                },
+                DeploymentEvent::List { .. } => DeploymentReport::List { resources: vec![] },
+            };
+            Ok(report)
+        }
+        "networks" => {
+            let network_deployment: DeploymentEvent<Network> =
+                serde_json::from_slice(&delivery.data)?;
+            let report = match network_deployment {
+                DeploymentEvent::List { .. } => DeploymentReport::List { resources: vec![] },
+                DeploymentEvent::Ensure { data, identifier } => DeploymentReport::Ensure {
+                    identifier,
+                    state: DeploymentState::Configured,
+                    result: Some(Ok(())),
+                },
+                DeploymentEvent::Remove { data, identifier } => DeploymentReport::Remove {
+                    identifier,
+                    state: DeploymentState::Configured,
+                    result: Some(Ok(())),
+                },
+            };
+            Ok(report)
+        }
+        _ => Err(Error::UnsupportedRoutingKey),
+    }
 }

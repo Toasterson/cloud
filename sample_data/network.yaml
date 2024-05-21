@@ -1,0 +1,13 @@
+tenant: openindiana.org
+name: oi
+switches:
+- kind: Distributed
+  name: internal
+  allowed_range: 192.168.100.0/24
+  router: 192.168.100.1
+  public_ips: []
+- kind: External
+  name: aurora-opencloud.org/public
+  allowed_range: null
+  router: null
+  public_ips: []

@@ -17,8 +17,6 @@ pub enum ResourceIdentifierParseError {
     ParseInt(#[from] std::num::ParseIntError),
     #[error("no scheme provided please start the string with res:// res:/")]
     NoScheme,
-    #[error("version without timestamp")]
-    NoTimestamp,
     #[error("no version in resource identifier")]
     NoVersion,
 }
@@ -29,7 +27,6 @@ pub struct ResourceIdentifier {
     pub name: String,
     pub version: String,
     pub revision: i32,
-    pub timestamp: i64,
 }
 
 impl Serialize for ResourceIdentifier {
@@ -69,13 +66,11 @@ impl<'de> Deserialize<'de> for ResourceIdentifier {
 
 impl ResourceIdentifier {
     pub fn new(tenant: Option<String>, name: String, version: Version) -> Self {
-        use chrono::prelude::*;
         Self {
             tenant,
             name,
             version: version.to_string(),
             revision: 0,
-            timestamp: Utc::now().naive_utc().and_utc().timestamp(),
         }
     }
 }
@@ -97,24 +92,16 @@ impl FromStr for ResourceIdentifier {
             (None, name_string.replace("res:/", ""))
         };
 
-        let (version, revision, timestamp) = if version_string.contains('-') {
-            let split = version_string
-                .split_once(':')
-                .ok_or(ResourceIdentifierParseError::NoTimestamp)?;
-            (
-                Version::parse(split.0)?,
+        let (version, revision) = if !version_string.contains('-') {
+            (    
+                Version::parse(version_string)?,
                 0,
-                DateTime::from_timestamp_nanos(split.1.parse()?).naive_utc(),
             )
         } else {
-            let split = version_string
-                .split_once(':')
-                .ok_or(ResourceIdentifierParseError::NoTimestamp)?;
-            let ver_split = split.0.split_once('-').unwrap();
+            let ver_split = version_string.split_once('-').unwrap();
             (
                 Version::parse(ver_split.0)?,
                 ver_split.1.parse()?,
-                DateTime::from_timestamp_nanos(split.1.parse()?).naive_utc(),
             )
         };
 
@@ -123,7 +110,6 @@ impl FromStr for ResourceIdentifier {
             name,
             version: version.to_string(),
             revision,
-            timestamp: timestamp.and_utc().timestamp(),
         })
     }
 }
@@ -131,9 +117,9 @@ impl FromStr for ResourceIdentifier {
 impl Display for ResourceIdentifier {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let version_string = if self.revision == 0 {
-            format!("{}:{}", self.version, self.timestamp)
+            format!("{}", self.version)
         } else {
-            format!("{}-{}:{}", self.version, self.revision, self.timestamp)
+            format!("{}-{}", self.version, self.revision)
         };
         let str = match &self.tenant {
             None => format!("res:/{}@{}", self.name, version_string),
@@ -157,8 +143,21 @@ pub struct Deployment {
     pub created_at: NaiveDateTime,
     pub updated_at: Option<NaiveDateTime>,
     pub resources: Vec<Bytes>,
+    pub state: DeploymentState,
     pub files: Vec<File>,
     pub selector: Selector,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum DeploymentState {
+    Configured,
+    Installed,
+    Starting,
+    Started,
+    Stopping,
+    Stopped,
+    Archived,
+    Orphaned,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -176,14 +175,26 @@ pub enum FileKind {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub enum DeploymentEvent<T> {
-    Create { data: T, kind: String },
-    Update { data: T, kind: String },
-    Delete { data: T, kind: String },
-    List { requester: String, kind: String },
+    Ensure { data: T, identifier: ResourceIdentifier },
+    Remove { data: T, identifier: ResourceIdentifier },
+    List { requester: String},
 }
 
+/// Emitted by the nodelet multiple times during the setup process.
+/// A Statusreport is when result is None, a Final Report is when Some result is returned
 #[derive(Debug, Deserialize, Serialize)]
-pub enum StatusReport<T, E> {
-    Ok { kind: String, data: Vec<T> },
-    Err(E),
+pub enum DeploymentReport {
+    Ensure {
+        identifier: ResourceIdentifier,
+        state: DeploymentState,
+        result: Option<Result<(), String>>,
+    },
+    Remove {
+        identifier: ResourceIdentifier,
+        state: DeploymentState,
+        result: Option<Result<(), String>>,
+    },
+    List {
+        resources: Vec<(ResourceIdentifier, DeploymentState)>
+    },
 }

@@ -4,3 +4,6 @@
 rustflags = [
     "-C", "link-arg=-fuse-ld=lld",
 ]
+
+[alias]
+xtask = "run --package xtask --"

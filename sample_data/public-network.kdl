@@ -1,7 +1,7 @@
 tenant "aurora-opencloud.org"
-name "default"
+name "public"
 
-(local) vswitch "public" {
+(local)vswitch "public" {
     router "45.23.76.1"
     public-ips {
         range "45.23.76.0/29"
